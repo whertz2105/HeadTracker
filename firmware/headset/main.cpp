@@ -3,14 +3,24 @@
 
 #include "../common/imu_mpu6050.h"
 #include "../common/packet.h"
+#include "../common/transport.h"
+#include "../common/transport_config.h"
 #include "../common/util.h"
+
+#if defined(TRANSPORT_ESP_NOW)
+#  include "../common/transport_espnow.cpp"
+#elif defined(TRANSPORT_HC12)
+#  include "../common/transport_hc12.cpp"
+#else
+#  error "Select TRANSPORT_ESP_NOW or TRANSPORT_HC12 in build_flags"
+#endif
 
 // -----------------------------------------------------------------------------
 // Headset Firmware Entry Point
 // -----------------------------------------------------------------------------
 // Responsibilities:
 //   * Read the MPU-6050 IMU at high rate and fuse data with Madgwick filter.
-//   * Transmit yaw/pitch/roll quaternions to the drone via the HC-12 radio.
+//   * Transmit yaw/pitch/roll quaternions to the drone via the selected transport.
 //   * Provide a recenter button so the pilot can reset yaw alignment.
 //   * Offer a friendly serial console for diagnostics and calibration.
 // -----------------------------------------------------------------------------
@@ -38,13 +48,12 @@ void setup() {
     blinkStatusLed(100, 100, 10);
   }
 
-  // Configure the HC-12 serial radio. The SET pin is held HIGH for normal
-  // transparent transmission mode. We use Serial2 because the default USB
-  // serial (Serial) is reserved for logging.
-  pinMode(Pins::kHc12Set, OUTPUT);
-  digitalWrite(Pins::kHc12Set, HIGH);
-  Serial2.begin(9600, SERIAL_8N1, Pins::kHc12Rx, Pins::kHc12Tx);
-  Serial.println(F("[Headset] HC-12 serial ready."));
+  // Bring up the selected transport (ESP-NOW for bench tests or HC-12 for
+  // long-range flying).  Beginners can inspect the serial log to confirm the
+  // transport printed a success message.
+  if (!Transport::begin(nullptr)) {
+    Serial.println(F("[Headset] Transport init failed. Check settings."));
+  }
 
   last_filter_update_us = micros();
   Serial.println(F("[Headset] Ready."));
@@ -58,6 +67,9 @@ void loop() {
     delta_seconds = 0.005f;
   }
   last_filter_update_us = now_us;
+
+  // Service the transport in case it needs polling (UART).
+  Transport::loop();
 
   // Update orientation estimate.
   if (!imu.update(delta_seconds)) {
@@ -86,11 +98,10 @@ void loop() {
     last_broadcast_ms = now_ms;
     const bool recenter_pressed = digitalRead(Pins::kRecenterButton) == LOW;
     HeadsetPacket pkt = makePacket(angles, recenter_pressed, sequence_counter++);
-    // Send the packet directly over the HC-12 serial link. We double-check the
-    // byte count so beginners can spot wiring issues if it prints an error.
-    size_t written = Serial2.write(reinterpret_cast<uint8_t*>(&pkt), kPacketSize);
-    if (written != kPacketSize) {
-      Serial.println(F("[Headset] HC-12 write incomplete. Check wiring."));
+    // Send the packet through the transport layer (ESP-NOW or HC-12). We report
+    // failures so beginners can spot wiring or pairing issues quickly.
+    if (!Transport::send(reinterpret_cast<const uint8_t*>(&pkt), kPacketSize)) {
+      Serial.println(F("[Headset] Transport send failed."));
     }
     toggleStatusLed();
 

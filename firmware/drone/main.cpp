@@ -4,7 +4,17 @@
 #include "../common/imu_mpu6050.h"
 #include "../common/packet.h"
 #include "../common/servo_map.h"
+#include "../common/transport.h"
+#include "../common/transport_config.h"
 #include "../common/util.h"
+
+#if defined(TRANSPORT_ESP_NOW)
+#  include "../common/transport_espnow.cpp"
+#elif defined(TRANSPORT_HC12)
+#  include "../common/transport_hc12.cpp"
+#else
+#  error "Select TRANSPORT_ESP_NOW or TRANSPORT_HC12 in build_flags"
+#endif
 
 #include <cstring>
 
@@ -13,7 +23,7 @@
 // -----------------------------------------------------------------------------
 // Responsibilities:
 //   * Read the drone-mounted MPU-6050 to know the aircraft orientation.
-//   * Receive headset packets via HC-12 and combine with drone orientation.
+//   * Receive headset packets via the selected transport and combine with drone orientation.
 //   * Interpret the transmitter's mode switch from a PWM input.
 //   * Command pan/tilt servos with low-pass filtering, slew limiting, and failsafe.
 // -----------------------------------------------------------------------------
@@ -42,7 +52,8 @@ float readPwmMicroseconds();
 void applyFailsafe(float dt_ms, float* target_pan, float* target_tilt);
 void updateServos(float dt_ms, float target_pan_deg, float target_tilt_deg);
 void handlePacket(const HeadsetPacket& pkt);
-void pollHc12();
+void onTransportReceive(const uint8_t* data, size_t len);
+void processRxBuffer();
 
 namespace {
 uint8_t rx_buffer[64];
@@ -62,11 +73,11 @@ void setup() {
     blinkStatusLed(100, 100, 10);
   }
 
-  // Configure the HC-12 serial radio for transparent operation.
-  pinMode(Pins::kHc12Set, OUTPUT);
-  digitalWrite(Pins::kHc12Set, HIGH);
-  Serial2.begin(9600, SERIAL_8N1, Pins::kHc12Rx, Pins::kHc12Tx);
-  Serial.println(F("[Drone] HC-12 serial ready."));
+  // Start the selected transport layer.  The handler funnels raw bytes into the
+  // packet parser implemented later in this file.
+  if (!Transport::begin(onTransportReceive)) {
+    Serial.println(F("[Drone] Transport init failed."));
+  }
 
   // Configure hardware PWM for servos.
   ledcSetup(pan_servo.ledc_channel, 50, 16);
@@ -83,9 +94,10 @@ void setup() {
 }
 
 void loop() {
-  // Service the HC-12 serial stream and decode any complete packets that
-  // arrived since the previous loop iteration.
-  pollHc12();
+  // Give the transport a chance to move bytes from its hardware FIFOs and then
+  // parse any packets that arrived since the last iteration.
+  Transport::loop();
+  processRxBuffer();
 
   const uint32_t now_us = micros();
   static uint32_t last_update_us = now_us;
@@ -166,21 +178,7 @@ void loop() {
   }
 }
 
-void pollHc12() {
-  // Read all available bytes from Serial2, placing them into a small FIFO. The
-  // headset sends fixed-length packets, so once the FIFO holds nine bytes we
-  // can decode and process the message.
-  while (Serial2.available() > 0) {
-    uint8_t byte_in = static_cast<uint8_t>(Serial2.read());
-    if (rx_count < sizeof(rx_buffer)) {
-      rx_buffer[rx_count++] = byte_in;
-    } else {
-      // If the buffer overflows we reset it so parsing can resynchronize.
-      rx_count = 0;
-      rx_buffer[rx_count++] = byte_in;
-    }
-  }
-
+void processRxBuffer() {
   while (rx_count >= kPacketSize) {
     HeadsetPacket pkt;
     std::memcpy(&pkt, rx_buffer, kPacketSize);
@@ -198,6 +196,22 @@ void pollHc12() {
       if (rx_count > 0) {
         std::memmove(rx_buffer, rx_buffer + 1, rx_count);
       }
+    }
+  }
+}
+
+void onTransportReceive(const uint8_t* data, size_t len) {
+  if (!data || len == 0) {
+    return;
+  }
+  for (size_t i = 0; i < len; ++i) {
+    if (rx_count < sizeof(rx_buffer)) {
+      rx_buffer[rx_count++] = data[i];
+    } else {
+      // Overflow means the parser may be out of sync.  Clear the buffer and
+      // start fresh with the newest byte to recover quickly.
+      rx_count = 0;
+      rx_buffer[rx_count++] = data[i];
     }
   }
 }

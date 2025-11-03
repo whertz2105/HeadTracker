@@ -10,7 +10,7 @@ Welcome! This repository contains a complete, beginner-friendly build for a two-
 |---------|--------------|------------|
 | MCU | ESP32-WROOM dev board | ESP32-WROOM dev board |
 | IMU | MPU-6050 | MPU-6050 |
-| Radio | HC-12 433 MHz serial link | HC-12 433 MHz serial link |
+| Radio | HC-12 433 MHz serial link (ESP-NOW optional for bench tests) | HC-12 433 MHz serial link (ESP-NOW optional) |
 | IO | Recenter button, status LED | Pan servo, tilt servo, PWM input, status LED |
 | Update Rate | ~30 packets per second | ~30 packets per second |
 | Orientation Filter | Madgwick quaternion fusion | Madgwick quaternion fusion |
@@ -27,7 +27,7 @@ Welcome! This repository contains a complete, beginner-friendly build for a two-
 2. **Order parts** using the Bill of Materials guide in [`hardware/bom.md`](hardware/bom.md). Run `make bom` to see total cost/weight breakdowns.
 3. **Wire the headset** following [`docs/wiring_headset.md`](docs/wiring_headset.md). It includes large diagrams and plug-by-plug instructions.
 4. **Wire the drone node** using [`docs/wiring_drone.md`](docs/wiring_drone.md) and the Betaflight integration notes in [`docs/betaflight_setup.md`](docs/betaflight_setup.md).
-5. **Configure the HC-12 radios** using Section 3 before final assembly.
+5. **Choose your communication link** using Section 3 (ESP-NOW for bench testing or HC-12 for flight).
 6. **Flash firmware** with the provided PlatformIO environments.
 7. **Calibrate the IMUs** using the motion routine described in [`docs/calibration.md`](docs/calibration.md).
 8. **Verify operation** with the PC test tools in [`test/`](test/) and the checklist at [`test/selftest_checklist.md`](test/selftest_checklist.md).
@@ -36,10 +36,26 @@ If you follow the steps in order, you can go from unopened parts boxes to a work
 
 ---
 
-## 3. Configuring the HC-12 Link
+## 3. Choosing Your Communication Link
 
-The system uses a pair of HC-12 serial radios for reliable long-range communication. Follow these steps to prepare the link:
+You can operate the build in two ways: **ESP-NOW** for cable-free bench testing indoors, or the traditional **HC-12** serial radios for long-range flight. Pick the path that matches your current test setup.
 
+### ESP-NOW (Bench Test Mode)
+1. **Find each ESP32's MAC address.**
+   - Open `firmware/tools/show_mac` in PlatformIO and flash it to one board at a time.
+   - Open the Serial Monitor (`Ctrl+Shift+M`) and copy the line `Station MAC: xx:xx:xx:xx:xx:xx`.
+2. **Edit `transport_config.h`.**
+   - Under `HEADSET_SIDE`, paste the **drone's** MAC address.
+   - Under `DRONE_SIDE`, paste the **headset's** MAC address.
+3. **Build and upload the ESP-NOW firmware.**
+   ```bash
+   pio run -e headset_esp32_espnow -t upload
+   pio run -e drone_esp32_espnow -t upload
+   ```
+4. **Watch the boot logs.** Both consoles should print `[Transport] ESP-NOW init OK.` once the peer link is ready.
+5. **Move the headset.** Packet counters and servo motion should update within a few milliseconds (indoor range is typically 5–20 m).
+
+### HC-12 (Long-Range Mode)
 1. **Wire the modules.**
    - Headset & drone ESP32 TX → HC-12 RX (GPIO17), RX ← HC-12 TX (GPIO16).
    - SET pin → GPIO4 (leave HIGH for transparent mode).
@@ -49,12 +65,13 @@ The system uses a pair of HC-12 serial radios for reliable long-range communicat
    - `AT+P8`
    - `AT+C032`
    - `AT+FU3`
-3. **Build and flash the firmware.**
+3. **Build and flash the HC-12 firmware.**
    ```bash
-   pio run -e headset_esp32 -t upload
-   pio run -e drone_esp32 -t upload
+   pio run -e headset_esp32_hc12 -t upload
+   pio run -e drone_esp32_hc12 -t upload
    ```
-4. **Check the serial consoles.** Each board prints `[Headset] HC-12 serial ready.` or `[Drone] HC-12 serial ready.` during boot and packet counters increment when you move the headset.
+   (Legacy shortcuts `headset_esp32` and `drone_esp32` still build the HC-12 variant.)
+4. **Check the serial consoles.** You should see `[Transport] HC-12 serial ready.` followed by packet counters when you move the headset.
 
 ### Control Modes via 3-Position Switch
 Route the transmitter's three-position switch (SA is a popular choice) to a spare PWM output on the F722 flight controller, then wire that output to the ESP32 pin listed in [`docs/wiring_drone.md`](docs/wiring_drone.md).
@@ -73,6 +90,7 @@ Expected PWM widths:
 Use [`test/viz_drone_pc.py`](test/viz_drone_pc.py) to double-check that the mode transitions look correct on the bench before flying.
 
 ### Troubleshooting Quick Hits
+- **No ESP-NOW link:** Re-check both MAC addresses, confirm the serial log shows `WiFi.mode(WIFI_STA)` success, and keep the boards within 10 m for testing.
 - **No HC-12 communication:** Re-run the AT commands, confirm SET pin is HIGH, and verify the grounds are tied together.
 - **Servos twitch or sag:** Power the servos from a dedicated 5 V BEC and share ground with the ESP32s.
 
@@ -109,7 +127,7 @@ graph TD
     A[Print BoM labels] --> B[Sort hardware parts]
     B --> C[Wire headset node]
     C --> D[Wire drone node]
-    D --> E[Configure HC-12 radios]
+    D --> E[Choose link & configure radios]
     E --> F[Flash headset firmware]
     F --> G[Flash drone firmware]
     G --> H[Calibrate IMUs]
