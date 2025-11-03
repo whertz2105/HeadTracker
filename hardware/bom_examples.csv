@@ -1,0 +1,3 @@
+Category,Subcategory,Item,Manufacturer,Model/Part#,Supplier,Supplier SKU,URL,Qty,Unit,Unit Price (USD),Total Price (USD),Unit Weight (g),Total Weight (g),Voltage,Current,Notes,Version/Rev,Footprint/Size,Where Installed
+Upgrades,Tracking,Headphones with Integrated Mic,Bose,QC35,Amazon,BOSE-QC35,https://example.com/qc35,1,ea,299.00,299.00,240,240,0,0,Optional comfort upgrade,U0,Over-ear,Headset
+Upgrades,Lighting,LED Ring Light,Neewer,RL-12,Amazon,NEE-RL12,https://example.com/ringlight,1,ea,45.00,45.00,800,800,12,1.5,Gimbal illumination,U0,12 in,Drone payload
