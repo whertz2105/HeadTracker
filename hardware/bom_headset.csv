@@ -1,0 +1,9 @@
+Category,Subcategory,Item,Manufacturer,Model/Part#,Supplier,Supplier SKU,URL,Qty,Unit,Unit Price (USD),Total Price (USD),Unit Weight (g),Total Weight (g),Voltage,Current,Notes,Version/Rev,Footprint/Size,Where Installed
+Electronics,MCU,ESP32-WROOM Dev Board,Espressif,ESP32-DEVKITC,Amazon,ESP32-DEVKITC,https://example.com/esp32,1,ea,12.95,12.95,25,25,5,0.5,Includes USB cable,A1,27x53 mm,Headset controller
+Electronics,Sensors,MPU-6050 IMU,InvenSense,MPU-6050,Amazon,MPU6050-BOB,https://example.com/mpu6050,1,ea,6.50,6.50,5,5,3.3,0.01,Mount with foam tape,A1,20x15 mm,Headset IMU
+Electronics,Radio,HC-12 Module,HC,HC-12,Amazon,HC12-433,https://example.com/hc12,1,ea,8.99,8.99,10,10,3.3,0.1,Configure AT+FU3,A1,27x14 mm,Headset radio
+Hardware,Cabling,Jumper Wire Kit,Generic,JW-40,Amazon,JW40,https://example.com/jumper,1,set,6.00,6.00,60,60,0,0,Female-female pack,A0,Assorted,Headset wiring
+Electronics,Power,USB Power Bank 5000 mAh,Anker,A1234,Amazon,ANK-5000,https://example.com/powerbank,1,ea,19.99,19.99,150,150,5,2,Headset runtime >6 h,A0,90x60x15 mm,Headset power
+Hardware,Controls,Recenter Button,E-Switch,TL1105,Digikey,EG1821-ND,https://example.com/button,1,ea,1.20,1.20,2,2,3.3,0.005,Optional momentary switch,A0,6x6 mm,Headset frame
+Hardware,Indicator,5 mm LED + Resistor Pack,Generic,LED-RED-5MM,SparkFun,COM-09590,https://example.com/led,1,set,1.50,1.50,1,1,2,0.02,Use 220 ohm resistor,A0,5 mm,Status indicator
+Consumables,Fasteners,Zip Ties 100 mm,Generic,ZT-100,HomeDepot,ZT100,https://example.com/ziptie,10,ea,0.05,0.50,0.2,2,0,0,Cable management,A0,100 mm,Wire routing
